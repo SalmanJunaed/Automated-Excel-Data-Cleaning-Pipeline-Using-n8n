@@ -1,0 +1,317 @@
+{
+  "name": "Assignment 3 mod 3",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "xlsx",
+        "options": {
+          "compression": false,
+          "fileName": "clean_customers.xlsx",
+          "sheetName": "clean data"
+        }
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        816,
+        32
+      ],
+      "id": "cfe68872-1c10-4699-a34f-8b8feed072bb",
+      "name": "Convert to File"
+    },
+    {
+      "parameters": {
+        "name": "={{ \"clean_customers.xlsx\" }}",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "1peqPw3Zpyi9Xp9w1btlLGSRmfZW1Wy3e",
+          "mode": "list",
+          "cachedResultName": "Assignment 3",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/1peqPw3Zpyi9Xp9w1btlLGSRmfZW1Wy3e"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1040,
+        32
+      ],
+      "id": "784f9f65-93f1-4283-b2c0-809daea7d623",
+      "name": "Upload file",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "YkgbZhmFrjhjtEcy",
+          "name": "Google Drive OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const report = items.find(\n  item => item.json.Summary_Report === true\n);\n\nreturn [\n  {\n    json: {\n      \"Total Rows Imported\": report.json.Total_Rows_Imported,\n      \"Rows Removed (Empty/Invalid)\": report.json.Rows_Removed_Empty_Invalid,\n      \"Duplicate Rows Removed\": report.json.Duplicate_Rows_Removed,\n      \"Invalid Emails Removed\": report.json.Invalid_Emails_Removed,\n      \"Invalid Phones Removed\": report.json.Invalid_Phones_Removed,\n      \"Final Row Count\": report.json.Final_Row_Count\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        592,
+        -160
+      ],
+      "id": "c86b34d4-4b6e-47da-8541-acc8b7d7a1f8",
+      "name": "Summary Data"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/14BR7fp1vBMhetTtCuyJm-rdoqG86K6GcxPtITjOxxkk/edit?usp=sharing",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/14BR7fp1vBMhetTtCuyJm-rdoqG86K6GcxPtITjOxxkk/edit#gid=0"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        144,
+        32
+      ],
+      "id": "d50bcc54-1e87-4db3-93da-eb8ec9835408",
+      "name": "Messy_customers",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "wNhvBBG1Mhp0v0wx",
+          "name": "Google Sheets OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const seenEmails = new Set();\nconst seenPhones = new Set();\n\nconst cleanText = (value) => {\nif (value === null || value === undefined) return \"\";\n\nreturn String(value)\n.trim()\n.replace(/\\s+/g, \" \");\n};\n\nconst properCase = (text) => {\nreturn cleanText(text)\n.toLowerCase()\n.replace(/\\b\\w/g, c => c.toUpperCase());\n};\n\nconst output = [];\n\nlet totalRows = items.length;\nlet emptyRows = 0;\nlet invalidEmails = 0;\nlet invalidPhones = 0;\nlet duplicates = 0;\n\nfor (const item of items) {\n\nlet name = properCase(item.json[\"Full Name\"]);\n\nlet email = cleanText(\nitem.json[\"Email\"]\n).toLowerCase();\n\nlet phone = cleanText(\nitem.json[\"Phone\"]\n);\n\nif (phone && !phone.startsWith(\"0\")) {\nphone = \"0\" + phone;\n}\n\nlet city = properCase(\nitem.json[\"City\"]\n);\n\nconst dateRaw =\nitem.json[\"Registration Date\"];\n\n// Empty Row Check\nif (!name || !email || !phone) {\nemptyRows++;\ncontinue;\n}\n\nif (email === \"(missing)\") {\nemptyRows++;\ncontinue;\n}\n\n// Email Validation\nconst emailValid =\n/^[^\\s@]+@[^\\s@]+.[^\\s@]+$/.test(email);\n\nif (!emailValid) {\ninvalidEmails++;\ncontinue;\n}\n\n// Phone Validation\nconst phoneValid =\n/^01\\d{9}$/.test(phone);\n\nif (!phoneValid) {\ninvalidPhones++;\ncontinue;\n}\n\n// Duplicate Check\nif (\nseenEmails.has(email) ||\nseenPhones.has(phone)\n) {\nduplicates++;\ncontinue;\n}\n\nseenEmails.add(email);\nseenPhones.add(phone);\n\nlet formattedDate = \"\";\n\ntry {\nformattedDate = new Date(dateRaw)\n.toISOString()\n.split(\"T\")[0];\n} catch {\nformattedDate = \"\";\n}\n\noutput.push({\njson: {\n\"Customer ID\":\n`CUST-${String(output.length + 1).padStart(4, \"0\")}`,\n\"Full Name\": name,\n\"Email\": email,\n\"Phone\": phone,\n\"City\": city,\n\"Registration Date\": formattedDate\n}\n});\n}\n\n// Summary Row Add\n\noutput.push({\njson: {\nSummary_Report: true,\nTotal_Rows_Imported: totalRows,\nRows_Removed_Empty_Invalid:\nemptyRows + invalidEmails + invalidPhones,\nDuplicate_Rows_Removed: duplicates,\nInvalid_Emails_Removed: invalidEmails,\nInvalid_Phones_Removed: invalidPhones,\nFinal_Row_Count:\noutput.length \n}\n});\n\nreturn output;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        368,
+        32
+      ],
+      "id": "63ce589c-b613-406c-956a-e63591932a03",
+      "name": "Data Cleaning"
+    },
+    {
+      "parameters": {
+        "path": "13483dd7-f7cc-4fea-b75e-7ed62b26b911",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -80,
+        32
+      ],
+      "id": "6585eba6-91de-40f6-b630-0538ee27b677",
+      "name": "Webhook",
+      "webhookId": "13483dd7-f7cc-4fea-b75e-7ed62b26b911"
+    },
+    {
+      "parameters": {
+        "operation": "xlsx",
+        "options": {
+          "fileName": "SummaryReport.xlsx",
+          "sheetName": "Summary Report"
+        }
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        816,
+        -160
+      ],
+      "id": "8e03efee-a36c-4403-a7ec-ceabddba5d63",
+      "name": "Convert to File1"
+    },
+    {
+      "parameters": {
+        "name": "={{ \"SummaryReport.xlsx\" }}",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "1peqPw3Zpyi9Xp9w1btlLGSRmfZW1Wy3e",
+          "mode": "list",
+          "cachedResultName": "Assignment 3",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/1peqPw3Zpyi9Xp9w1btlLGSRmfZW1Wy3e"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1024,
+        -160
+      ],
+      "id": "179b3a75-17a7-4199-bb2b-5d00dfa6592e",
+      "name": "Upload file1",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "YkgbZhmFrjhjtEcy",
+          "name": "Google Drive OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        608,
+        176
+      ],
+      "id": "3917c21f-c05c-4e3d-8d95-73b0a9b44faf",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.filter(\n  item => !item.json.Summary_Report\n);"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        592,
+        32
+      ],
+      "id": "90c033b2-95c3-4be6-b88a-7062c6816e21",
+      "name": "Cleaned data"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Convert to File": {
+      "main": [
+        [
+          {
+            "node": "Upload file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Messy_customers": {
+      "main": [
+        [
+          {
+            "node": "Data Cleaning",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Data Cleaning": {
+      "main": [
+        [
+          {
+            "node": "Summary Data",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Cleaned data",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Messy_customers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summary Data": {
+      "main": [
+        [
+          {
+            "node": "Convert to File1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload file": {
+      "main": [
+        []
+      ]
+    },
+    "Convert to File1": {
+      "main": [
+        [
+          {
+            "node": "Upload file1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cleaned data": {
+      "main": [
+        [
+          {
+            "node": "Convert to File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload file1": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "7acde2bf-708c-4db2-b9bf-584a486da2cc",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "43ddbfe80ce3ebff2e5f6f7e077fef1d0562f88274155a84e8694dd295bea487"
+  },
+  "nodeGroups": [],
+  "id": "38RRj0XipVUGEvmZ",
+  "tags": []
+}
